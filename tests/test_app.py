@@ -1,5 +1,7 @@
 from http import HTTPStatus
 
+from fast_zero.schemas import UserPublicSchema
+
 
 def test_root_should_return_ok_and_ola(client):
     # cliente = TestClient(app) #arrange,
@@ -37,30 +39,52 @@ def test_creat_user(client):
 def test_read_users(client):
     response = client.get('/users/')
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        'users': [{'id': 1, 'username': 'Lucas', 'email': 'teste@teste.com'}]
-    }
+    assert response.json() == {'users': []}
 
 
-def test_update_user(client):
+def test_read_users_with_user(client, user):
+    user_schema = UserPublicSchema.model_validate(user).model_dump()
+    response = client.get('/users/')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'users': [user_schema]}
+
+
+def test_update_user(client, user, token):
     response = client.put(
-        '/users/1',
+        f'/users/{user.id}',
+        headers={'Authorization': f'Bearer {token}'},
         json={
-            'username': 'Lucas',
-            'email': 'lucas@lucas.com',
-            'password': '123456',
+            'username': 'bob',
+            'email': 'bob@example.com',
+            'password': 'mynewpassword',
         },
     )
+    assert response.status_code == HTTPStatus.OK
     assert response.json() == {
-        'id': 1,
-        'username': 'Lucas',
-        'email': 'lucas@lucas.com',
+        'username': 'bob',
+        'email': 'bob@example.com',
+        'id': user.id,
     }
 
 
-def test_delete_user(client):
-    response = client.delete('/users/1')
-    assert response.json() == {'message': 'user deleted'}
+def test_delete_user(client, user, token):
+    response = client.delete(
+        f'/users/{user.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
     assert response.status_code == HTTPStatus.OK
-    response = client.get('/users/')
-    assert response.json() == {'users': []}
+    assert response.json() == {'message': 'User deleted'}
+
+
+def test_get_token(client, user):
+    response = client.post(
+        '/token',
+        data={'username': user.email, 'password': user.clean_password},
+    )
+    token = response.json()
+
+    assert response.status_code == HTTPStatus.OK
+    assert 'access_token' in token
+    assert 'token_type' in token
